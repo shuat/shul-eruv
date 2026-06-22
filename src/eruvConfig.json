@@ -1,0 +1,622 @@
+{
+  "title": "עירוב ד'ברוקוואוד",
+  "englishTitle": "Brookwood Eruv Map",
+  "kicker": "Draft open-map recreation",
+  "subtitle": "Boundary overlay for the area around Citadel Drive in Jackson, NJ, traced from the supplied printed map.",
+  "hotline": "732-236-7119",
+  "areaLabel": "52 Citadel Dr area",
+  "municipality": "Jackson, NJ",
+  "vaadTitle": "וועד העירוב",
+  "vaadMembers": [
+    "ר׳ מרדכי בורנשטיין",
+    "ר׳ אברהם צבי ווייסמאן",
+    "ר׳ מענדל קירביץ",
+    "ר׳ יהושע רודניצקי",
+    "ר׳ יוסף מאסקאו",
+    "ר׳ מאיר קאהנוביץ",
+    "ר׳ לייב בריישווא"
+  ],
+  "configNote": "The last handwritten vaad entries were transcribed from the latest photo and should be verified for spelling.",
+  "map": {
+    "center": [
+      40.1206,
+      -74.2501
+    ],
+    "screenFitPaddingRatio": 0.12,
+    "printFitPaddingRatio": 0.02,
+    "printPreview": {
+      "defaultZoomPercent": 100,
+      "minZoomPercent": 80,
+      "maxZoomPercent": 140,
+      "stepPercent": 1
+    }
+  },
+  "boundaryStyles": {
+    "notIncluded": {
+      "color": "#c4313b",
+      "label": "Street + sidewalk not included",
+      "weight": 6
+    },
+    "innerSidewalk": {
+      "color": "#8c2b5b",
+      "dashArray": "10 8",
+      "label": "Only inner sidewalk included",
+      "weight": 4
+    },
+    "innerSidewalkStreet": {
+      "color": "#1c7cc1",
+      "dashArray": "1 10",
+      "label": "Inner sidewalk + street included",
+      "weight": 5
+    },
+    "fullStreet": {
+      "color": "#2f7d54",
+      "label": "Full street and property included",
+      "weight": 4
+    }
+  },
+  "markerColors": {
+    "start": "#f4b942",
+    "stop": "#f05a5f",
+    "reference": "#ffffff"
+  },
+  "markerLegendLabel": "Address marker where eruv begins",
+  "notes": [
+    "The עירוב may not be used until one is absolutely familiar with the map and its boundaries. Please tell your guests.",
+    "Please notify R' Yehoshua Rudnicki (914-420-3188) if one sees a fence down or that construction was done. The עירוב is relying on front or back fences in border areas.",
+    "Those properties at the end of the עירוב should check that their backyards are enclosed with a fence 40\" tall (eg. Arizona, Brookwood Pkwy, Citadel, Alaska, and Bryant Avenues).",
+    "If there is a snow storm or heavy winds on a Friday or שבת, the עירוב must be assumed פסול until the hotline is updated verifying its validity.",
+    "The עירוב is to enhance כבוד שבת. Please refrain from doing things not in the spirit of שבת in order to preserve קדושת שבת.",
+    "This עירוב map is to ensure that there is no חילול שבת due to unclear boundaries. For exact boundaries, please contact R' Yehoshua Rudnicki."
+  ],
+  "mapLabels": [
+    {
+      "id": "bryant-citadel-open-area",
+      "label": "The open area between the backyards on Bryant and Citadel is not in the עירוב.",
+      "position": [
+        40.12258,
+        -74.2521
+      ],
+      "variant": "callout"
+    },
+    {
+      "id": "outer-sidewalk-warning",
+      "label": "The outer sidewalk to the corner of Louisiana and Oregon is out of the עירוב.",
+      "position": [
+        40.1193688,
+        -74.251142
+      ],
+      "variant": "callout"
+    },
+    {
+      "id": "sidewalk-property-warning",
+      "label": "Sidewalk + property are included starting at the fence between these houses.",
+      "position": [
+        40.12078,
+        -74.24542
+      ],
+      "variant": "callout",
+      "fontSizePt": 6.2
+    },
+    {
+      "id": "park-label",
+      "label": "PARK",
+      "position": [
+        40.12182,
+        -74.24582
+      ],
+      "variant": "handwritten"
+    },
+    {
+      "id": "public-school-label",
+      "label": "Machon Matel Leah",
+      "position": [
+        40.1222,
+        -74.2501
+      ],
+      "variant": "plain"
+    }
+  ],
+  "mapShapes": [
+    {
+      "id": "park-box",
+      "label": "Park area marked on latest sheet",
+      "points": [
+        [
+          40.12217,
+          -74.24628
+        ],
+        [
+          40.12217,
+          -74.24572
+        ],
+        [
+          40.12153,
+          -74.24572
+        ],
+        [
+          40.12153,
+          -74.24628
+        ]
+      ],
+      "strokeColor": "#b12c30",
+      "fillColor": "#ffffff",
+      "fillOpacity": 0.08,
+      "weight": 4
+    }
+  ],
+  "boundarySegments": [
+    {
+      "id": "valley-inner-sidewalk",
+      "label": "Valley Road",
+      "kind": "innerSidewalk",
+      "points": [
+        [
+          40.12452,
+          -74.25418
+        ],
+        [
+          40.12447,
+          -74.24902
+        ]
+      ],
+      "note": "Dashed segment on the north edge of the printed map."
+    },
+    {
+      "id": "prospect-north-not-included",
+      "label": "S New Prospect Road north",
+      "kind": "notIncluded",
+      "points": [
+        [
+          40.12452,
+          -74.25418
+        ],
+        [
+          40.1231812,
+          -74.25418
+        ]
+      ],
+      "note": "Red boundary before the Bryant Drive entrance."
+    },
+    {
+      "id": "bryant-full-street",
+      "label": "Bryant Drive",
+      "kind": "fullStreet",
+      "points": [
+        [
+          40.1231812,
+          -74.25418
+        ],
+        [
+          40.12318,
+          -74.25103
+        ],
+        [
+          40.12318,
+          -74.24902
+        ],
+        [
+          40.12316,
+          -74.24718
+        ],
+        [
+          40.123129,
+          -74.24528
+        ]
+      ],
+      "note": "Full street segment along Bryant Drive."
+    },
+    {
+      "id": "citadel-full-street",
+      "label": "Citadel Drive",
+      "kind": "fullStreet",
+      "points": [
+        [
+          40.12196,
+          -74.2541178
+        ],
+        [
+          40.122014,
+          -74.253779
+        ],
+        [
+          40.122029,
+          -74.253552
+        ],
+        [
+          40.122026,
+          -74.253361
+        ],
+        [
+          40.121996,
+          -74.253182
+        ],
+        [
+          40.121921,
+          -74.252958
+        ],
+        [
+          40.121798,
+          -74.252711
+        ],
+        [
+          40.121671,
+          -74.252491
+        ],
+        [
+          40.121619,
+          -74.252353
+        ],
+        [
+          40.121583,
+          -74.252179
+        ],
+        [
+          40.1215707,
+          -74.2519528
+        ],
+        [
+          40.1215633,
+          -74.2517443
+        ],
+        [
+          40.1215298,
+          -74.2509276
+        ]
+      ],
+      "note": "Green route from the Citadel Drive edge toward New Hampshire Court."
+    },
+    {
+      "id": "emory-inner-sidewalk-street",
+      "label": "New Hampshire Street connector",
+      "kind": "innerSidewalkStreet",
+      "points": [
+        [
+          40.12318,
+          -74.25103
+        ],
+        [
+          40.1215298,
+          -74.25103
+        ]
+      ],
+      "note": "Blue dotted connector shown near Emory Court."
+    },
+    {
+      "id": "xavier-trinity-full-street",
+      "label": "Xavier to Trinity",
+      "kind": "fullStreet",
+      "points": [
+        [
+          40.12447,
+          -74.24902
+        ],
+        [
+          40.12318,
+          -74.24902
+        ],
+        [
+          40.12318,
+          -74.24742
+        ],
+        [
+          40.12386,
+          -74.24744
+        ],
+        [
+          40.12396,
+          -74.24788
+        ],
+        [
+          40.12383,
+          -74.24804
+        ]
+      ],
+      "note": "Green north and northeast boundary."
+    },
+    {
+      "id": "trinity-drew-brookwood-update",
+      "label": "Trinity / Drew latest update",
+      "kind": "fullStreet",
+      "points": [
+        [
+          40.12383,
+          -74.24804
+        ],
+        [
+          40.12373,
+          -74.24758
+        ],
+        [
+          40.12318,
+          -74.24642
+        ],
+        [
+          40.12352,
+          -74.24642
+        ],
+        [
+          40.12358,
+          -74.24622
+        ],
+        [
+          40.12355,
+          -74.24606
+        ],
+        [
+          40.12343,
+          -74.24604
+        ],
+        [
+          40.12318,
+          -74.24618
+        ],
+        [
+          40.123129,
+          -74.24528
+        ]
+      ],
+      "note": "Green Drew Court / Brookwood Parkway update visible on the latest sheet."
+    },
+    {
+      "id": "brookwood-east-full-street",
+      "label": "Brookwood Parkway side",
+      "kind": "fullStreet",
+      "points": [
+        [
+          40.123129,
+          -74.24528
+        ],
+        [
+          40.120312,
+          -74.245768
+        ],
+        [
+          40.11932,
+          -74.24582
+        ],
+        [
+          40.11825,
+          -74.24574
+        ],
+        [
+          40.1174,
+          -74.24558
+        ],
+        [
+          40.11672,
+          -74.24566
+        ],
+        [
+          40.11605,
+          -74.24612
+        ],
+        [
+          40.11555,
+          -74.24678
+        ],
+        [
+          40.1144909,
+          -74.2475311
+        ]
+      ],
+      "note": "Eastern edge near Drew Court and Brookwood Parkway."
+    },
+    {
+      "id": "brookwood-sidewalk-street-stop",
+      "label": "Brookwood marked houses",
+      "kind": "innerSidewalkStreet",
+      "points": [
+        [
+          40.121901,
+          -74.245497
+        ],
+        [
+          40.121419,
+          -74.245586
+        ],
+        [
+          40.120312,
+          -74.245768
+        ]
+      ],
+      "note": "Blue dotted section near the marked 50/52 houses."
+    },
+    {
+      "id": "florida-brookwood-full-street",
+      "label": "Florida and Alaska connector",
+      "kind": "fullStreet",
+      "points": [
+        [
+          40.121455,
+          -74.249808
+        ],
+        [
+          40.120976,
+          -74.24983
+        ],
+        [
+          40.120874,
+          -74.249779
+        ],
+        [
+          40.120322,
+          -74.249332
+        ],
+        [
+          40.12024,
+          -74.249437
+        ],
+        [
+          40.119727,
+          -74.25
+        ],
+        [
+          40.119558,
+          -74.249787
+        ],
+        [
+          40.119459,
+          -74.249692
+        ],
+        [
+          40.119319,
+          -74.249623
+        ]
+      ],
+      "note": "Interior reference route around Florida Place and Alaska Avenue."
+    },
+    {
+      "id": "county-line-not-included",
+      "label": "W County Line Road",
+      "kind": "notIncluded",
+      "points": [
+        [
+          40.12196,
+          -74.2541178
+        ],
+        [
+          40.12085,
+          -74.25382
+        ],
+        [
+          40.1197,
+          -74.25357
+        ],
+        [
+          40.11845,
+          -74.25328
+        ],
+        [
+          40.11755,
+          -74.25308
+        ],
+        [
+          40.11685,
+          -74.25238
+        ],
+        [
+          40.11615,
+          -74.25102
+        ],
+        [
+          40.11555,
+          -74.24965
+        ],
+        [
+          40.1144909,
+          -74.2475311
+        ]
+      ],
+      "note": "Red western and southern boundary shown as not included."
+    },
+    {
+      "id": "idaho-inner-sidewalk",
+      "label": "Idaho Place",
+      "kind": "innerSidewalk",
+      "points": [
+        [
+          40.1208635,
+          -74.2537574
+        ],
+        [
+          40.120889,
+          -74.253535
+        ],
+        [
+          40.1208923,
+          -74.253393
+        ],
+        [
+          40.120876,
+          -74.253232
+        ],
+        [
+          40.120838,
+          -74.253083
+        ],
+        [
+          40.120775,
+          -74.252937
+        ],
+        [
+          40.120698,
+          -74.252819
+        ]
+      ],
+      "note": "Dashed loop around the inner sidewalk at Idaho Place."
+    }
+  ],
+  "boundaryMarkers": [
+    {
+      "id": "marker-4-bryant",
+      "label": "4",
+      "position": [
+        40.1231812,
+        -74.2542789
+      ],
+      "type": "start",
+      "description": "Printed marker near Bryant Drive and S New Prospect Road."
+    },
+    {
+      "id": "marker-42-citadel",
+      "label": "42",
+      "position": [
+        40.12196,
+        -74.2541178
+      ],
+      "type": "stop",
+      "description": "Printed marker near the Citadel Drive edge."
+    },
+    {
+      "id": "marker-18",
+      "label": "18",
+      "position": [
+        40.12072,
+        -74.25317
+      ],
+      "type": "reference",
+      "description": "Inner sidewalk marker from the supplied map."
+    },
+    {
+      "id": "marker-20",
+      "label": "20",
+      "position": [
+        40.12086,
+        -74.25354
+      ],
+      "type": "reference",
+      "description": "Inner sidewalk marker from the supplied map."
+    },
+    {
+      "id": "marker-83-85",
+      "label": "83 / 85",
+      "position": [
+        40.123129,
+        -74.24528
+      ],
+      "type": "stop",
+      "description": "Marked houses after this point are outside the eruv."
+    },
+    {
+      "id": "marker-50-52",
+      "label": "50 / 52",
+      "position": [
+        40.120312,
+        -74.245768
+      ],
+      "type": "stop",
+      "description": "Printed stop/start marker on the east boundary."
+    },
+    {
+      "id": "marker-citadel-area",
+      "label": "52 Citadel Dr area",
+      "position": [
+        40.1218542,
+        -74.2526222
+      ],
+      "type": "reference",
+      "description": "Approximate area requested for orientation."
+    }
+  ]
+}
