@@ -99,7 +99,7 @@ function clampNumber(value: number, min: number, max: number) {
 }
 
 function isSaveModeEnabled() {
-  if (typeof window === "undefined") {
+  if (!import.meta.env.DEV || typeof window === "undefined") {
     return false;
   }
 
