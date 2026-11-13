@@ -61,6 +61,14 @@ button {
   padding-bottom: 0;
 }
 
+.app-footer {
+  font-size: 0.8rem;
+}
+
+.app-footer a {
+  color: #315b75;
+}
+
 .english-title {
   display: block;
   color: #1f2937;
@@ -596,6 +604,7 @@ body.print-prep .brand-kicker,
 body.print-prep .brand-block p,
 body.print-prep .control-grid,
 body.print-prep .advanced-card,
+body.print-prep .app-footer,
 body.print-prep .layer-card,
 body.print-prep .map-toolbar,
 body.print-prep .leaflet-control-zoom {
@@ -1265,7 +1274,8 @@ body.print-prep .notice-card li::before {
     height: 100%;
   }
 
-  .map-toolbar {
+  .map-toolbar,
+  .app-footer {
     display: none;
   }
 

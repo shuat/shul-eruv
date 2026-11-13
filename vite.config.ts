@@ -7,6 +7,18 @@ import react from "@vitejs/plugin-react";
 const CONFIG_SAVE_ROUTE = "/api/save-config";
 const CONFIG_PATH = path.resolve(process.cwd(), "src/eruvConfig.json");
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
+const SOURCE_REPOSITORY = "https://github.com/bitbean/shul-eruv";
+
+const {
+  VERCEL_GIT_PROVIDER: gitProvider,
+  VERCEL_GIT_REPO_OWNER: repoOwner,
+  VERCEL_GIT_REPO_SLUG: repoSlug,
+  VERCEL_GIT_COMMIT_SHA: commitSha,
+} = process.env;
+
+const sourceCodeUrl = gitProvider === "github" && repoOwner && repoSlug && commitSha
+  ? `https://github.com/${repoOwner}/${repoSlug}/tree/${commitSha}`
+  : SOURCE_REPOSITORY;
 
 function sendResponse(
   response: ServerResponse,
@@ -99,5 +111,6 @@ function eruvConfigSavePlugin(): Plugin {
 }
 
 export default defineConfig({
+  define: { __SOURCE_CODE_URL__: JSON.stringify(sourceCodeUrl) },
   plugins: [react(), eruvConfigSavePlugin()],
 });

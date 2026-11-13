@@ -26,5 +26,8 @@ Checks: `npm test` (Node.js 22.6+), `npm run build`.
 
 Author: Yehoshua Talansky.
 
-No license is currently declared for the application source code.
+The application source code is copyright © 2026 Yehoshua Talansky and is licensed under the [GNU General Public License, version 3](LICENSE) (`GPL-3.0-only`).
+
 OpenStreetMap data, including `src/roads.json`, is credited to [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) and licensed under [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Third-party dependencies retain their own licenses.
+
+The app's **Source code** link points to the deployed commit on GitHub when Vercel provides the Git metadata. For other deployments, set `VITE_SOURCE_CODE_URL` at build time to a public URL for the source matching that build.

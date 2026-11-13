@@ -77,6 +77,7 @@ const baseLayers: Record<
 const PRINT_PREP_CLASS = "print-prep";
 const printPreviewDefaults = eruvConfig.map.printPreview;
 const SAVE_CONFIG_ENDPOINT = "/api/save-config";
+const sourceCodeUrl = import.meta.env.VITE_SOURCE_CODE_URL || __SOURCE_CODE_URL__;
 const mapLabelTypographyDefaults: Record<
   MapLabel["variant"],
   { fontSizePt: number; fontWeight: number }
@@ -1403,6 +1404,9 @@ function App() {
             </div>
           </div>
         </details>
+        <footer className="app-footer">
+          <a href={sourceCodeUrl}>Source code</a>
+        </footer>
         </aside>
 
         <section className="map-stage" aria-label="Interactive eruv map">
