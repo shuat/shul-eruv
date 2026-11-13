@@ -34,7 +34,6 @@ import {
   eruvConfig,
   mapLabels,
   mapShapes,
-  markerColors,
   type BoundaryKind,
   type BoundarySegment,
   type LatLngTuple,
@@ -127,6 +126,12 @@ function getMapLabelTypography(label: MapLabel) {
 
 function getMapLabelBoxStyle(label: MapLabel) {
   const styleParts: string[] = [];
+  if (label.color && /^#[0-9a-f]{6}$/i.test(label.color)) {
+    styleParts.push(`color: ${label.color}`);
+  }
+  if (typeof label.rotationDeg === "number") {
+    styleParts.push(`transform: rotate(${label.rotationDeg}deg)`, "transform-origin: top left");
+  }
 
   if (typeof label.fontSizePt === "number") {
     styleParts.push(`font-size: ${roundFontSize(label.fontSizePt)}pt`);
@@ -329,6 +334,7 @@ function App() {
 
     L.control.zoom({ position: "bottomright" }).addTo(map);
     const fitInitialView = () => {
+      if (document.body.classList.contains(PRINT_PREP_CLASS)) return;
       map.invalidateSize(false);
       map.fitBounds(mapBounds.pad(eruvConfig.map.screenFitPaddingRatio), {
         animate: false,
@@ -385,7 +391,7 @@ function App() {
 
     if (showBoundary) {
       editableBoundarySegments.forEach((segment) => {
-        const style = boundaryStyles[segment.kind];
+        const style = { ...boundaryStyles[segment.kind], ...segment.style };
 
         const boundaryLine = L.polyline(segment.points, {
           color: style.color,
@@ -405,6 +411,15 @@ function App() {
         }
 
         boundaryLine.addTo(group);
+        if (style.innerColor && style.innerWeight) {
+          L.polyline(segment.points, {
+            color: style.innerColor,
+            weight: style.innerWeight,
+            interactive: false,
+            lineCap: "round",
+            lineJoin: "round",
+          }).addTo(group);
+        }
 
         if (isPrintPreview && segment.id === selectedBoundarySegmentId) {
           segment.points.forEach((point, pointIndex) => {
@@ -483,19 +498,19 @@ function App() {
     if (showMarkers) {
       boundaryMarkers.forEach((marker) => {
         const markerLayer = L.circleMarker(marker.position, {
-          radius: marker.type === "reference" ? 7 : 8,
+          radius: 2,
           color: "#17212f",
-          fillColor: markerColors[marker.type],
+          fillColor: "#222222",
           fillOpacity: 1,
           opacity: 1,
-          weight: 2,
+          weight: 0,
         });
 
         markerLayer
-          .bindTooltip(`<strong>${marker.label}</strong>`, {
+          .bindTooltip(escapeHtml(marker.label), {
             className: "marker-label",
             direction: "top",
-            offset: [0, -8],
+            offset: [0, -2],
             permanent: true,
           })
           .bindPopup(`<strong>${marker.label}</strong><br />${marker.description}`)
@@ -504,12 +519,12 @@ function App() {
 
       editableMapLabels.forEach((label) => {
         const isSelectedLabel = isPrintPreview && label.id === selectedMapLabelId;
-        const iconWidth =
+        const iconWidth = label.widthPx ?? (
           label.variant === "callout"
             ? 176
             : label.variant === "handwritten"
               ? 84
-              : 92;
+              : 92);
         const iconHeight = label.variant === "callout" ? 64 : 24;
 
         const labelMarker = L.marker(label.position, {
@@ -521,7 +536,7 @@ function App() {
             html: `<span class="map-label-box"${getMapLabelBoxStyle(label)}>${escapeHtml(
               label.label,
             )}</span>`,
-            iconAnchor: [iconWidth / 2, 0],
+            iconAnchor: [label.rotationDeg ? 0 : iconWidth / 2, 0],
             iconSize: [iconWidth, iconHeight],
           }),
           interactive: isPrintPreview,
@@ -781,7 +796,7 @@ function App() {
       setEditableBoundarySegments((currentSegments) =>
         currentSegments.map((segment) =>
           segment.id === selectedBoundarySegment.id
-            ? { ...segment, kind: value }
+            ? { ...segment, kind: value, style: value === segment.kind ? segment.style : undefined }
             : segment,
         ),
       );
@@ -1055,7 +1070,7 @@ function App() {
                     "--swatch-width": `${style.weight}px`,
                     "--swatch-print-width": `${Math.max(2.2, style.weight * 0.55)}pt`,
                     "--swatch-style":
-                      style.dashArray === "1 10"
+                      kind === "fullStreet" ? "double" : kind === "innerSidewalkStreet"
                         ? "dotted"
                         : style.dashArray
                           ? "dashed"

@@ -359,12 +359,19 @@ p {
 }
 
 .marker-label {
-  border: 1px solid rgba(23, 33, 47, 0.15);
-  padding: 3px 7px;
+  border: 0;
+  padding: 0 2px;
+  background: transparent;
+  box-shadow: none;
   color: #17212f;
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 400;
 }
+
+.marker-label::before {
+  display: none;
+}
+
 
 .map-text-label {
   width: 100%;
@@ -431,6 +438,7 @@ p {
   display: block;
   width: max-content;
   max-width: 100%;
+  white-space: pre-line;
 }
 
 .map-text-label-callout .map-label-box {
@@ -588,10 +596,10 @@ body.print-prep .vaad-card ul {
 
 body.print-prep .map-stage {
   position: absolute;
-  top: 1.38in;
-  left: 0.42in;
-  width: 5.88in;
-  height: 6.78in;
+  top: 1.25in;
+  left: 1.2in;
+  width: 5.05in;
+  height: 7in;
   min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(20, 20, 20, 0.16);
@@ -616,13 +624,13 @@ body.print-prep .leaflet-overlay-pane {
 
 body.print-prep .legend-card {
   position: absolute;
-  top: 7.36in;
-  left: 0.5in;
+  top: 7.5in;
+  left: 1.23in;
   z-index: 700;
   display: grid;
   grid-template-columns: 1fr;
   gap: 0.035in;
-  width: 3.28in;
+  width: 3.6in;
   min-height: 0;
   padding: 0.08in 0.1in;
   border: 0.8pt solid rgba(79, 88, 84, 0.72);
@@ -695,14 +703,15 @@ body.print-prep .notice-card li::before {
 }
 
 .print-preview-controls {
-  position: fixed;
+  position: absolute;
   top: 16px;
-  right: 16px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 2000;
   display: grid;
   gap: 12px;
-  width: min(340px, calc(100vw - 32px));
-  max-height: calc(100vh - 32px);
+  width: min(768px, calc(100vw - 32px));
+  max-height: 290px;
   overflow: auto;
   padding: 14px;
   border: 1px solid rgba(24, 32, 42, 0.16);
@@ -1156,10 +1165,10 @@ body.print-prep .notice-card li::before {
 
   .map-stage {
     position: absolute;
-    top: 1.38in;
-    left: 0.42in;
-    width: 5.88in;
-    height: 6.78in;
+    top: 1.25in;
+    left: 1.2in;
+    width: 5.05in;
+    height: 7in;
     min-height: 0;
     overflow: hidden;
     border: 1px solid rgba(20, 20, 20, 0.16);
@@ -1196,13 +1205,13 @@ body.print-prep .notice-card li::before {
 
   .legend-card {
     position: absolute;
-    top: 7.36in;
-    left: 0.5in;
+    top: 7.5in;
+    left: 1.23in;
     z-index: 700;
     display: grid;
     grid-template-columns: 1fr;
     gap: 0.035in;
-    width: 3.28in;
+    width: 3.6in;
     padding: 0.08in 0.1in;
     border: 0.8pt solid rgba(79, 88, 84, 0.72);
     background: rgba(249, 248, 243, 0.9);

@@ -15,12 +15,15 @@ export type BoundaryStyle = {
   dashArray?: string;
   label: string;
   weight: number;
+  innerColor?: string;
+  innerWeight?: number;
 };
 
 export type BoundarySegment = {
   id: string;
   label: string;
   kind: BoundaryKind;
+  style?: Pick<BoundaryStyle, "color" | "weight" | "innerWeight">;
   points: LatLngTuple[];
   note: string;
 };
@@ -34,6 +37,9 @@ export type BoundaryMarker = {
 };
 
 export type MapLabel = {
+  color?: string;
+  widthPx?: number;
+  rotationDeg?: number;
   fontSizePt?: number;
   fontWeight?: number;
   id: string;
