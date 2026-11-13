@@ -399,7 +399,6 @@ p {
 .boundary-edit-handle {
   width: 18px !important;
   height: 18px !important;
-  margin: 0 !important;
   border: 0;
   background: transparent;
 }
@@ -439,6 +438,89 @@ p {
   width: max-content;
   max-width: 100%;
   white-space: pre-line;
+}
+
+.shape-edit-handle {
+  border: 2px solid #aa4841;
+  background: #ffffff;
+  border-radius: 2px;
+}
+
+.app-shell.editing {
+  grid-template-columns: 330px minmax(0, 1fr);
+  height: 100vh;
+}
+.app-shell.editing > .info-panel { display: none; }
+.app-shell.editing > .map-stage { grid-column: 2; height: 100vh; }
+.app-shell.editing .map-canvas { height: 100%; min-height: 0; }
+.boundary-drag-target { cursor: move; touch-action: none; }
+.editor-controls {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 800;
+  width: 330px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background: #ffffff;
+  border-right: 1px solid #cdd5d0;
+}
+.editor-controls .label-edit-card,
+.editor-controls .boundary-edit-card {
+  padding: 12px 0;
+  border: 0;
+  border-top: 1px solid #dce1dd;
+  border-radius: 0;
+  background: transparent;
+}
+.editor-commands, .editor-add-tools, .editor-files {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.editor-files > button { flex: 1; }
+.editor-commands button, .editor-add-tools button, .editor-files button, .editor-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 1px solid #cdd5d0;
+  border-radius: 5px;
+  background: #fafcfb;
+  color: #263244;
+  font-size: 12px;
+  font-weight: 650;
+}
+.editor-commands button { width: 36px; padding: 6px; }
+.editor-close { margin-left: auto; border: 0; padding: 4px; }
+.editor-controls button:disabled, .print-preview-controls button:disabled { opacity: 0.45; cursor: not-allowed; }
+.editor-status { font-size: 12px; color: #315b75; overflow-wrap: anywhere; }
+.road-edit-tools, .area-edit-tools { display: grid; gap: 8px; border-top: 1px solid #dce1dd; padding-top: 12px; }
+.snap-toggle { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+.label-edit-select textarea, .label-edit-select input, .label-edit-grid select {
+  width: 100%;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid #cdd5d0;
+  border-radius: 5px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 12px;
+}
+.label-edit-select textarea { resize: vertical; }
+.label-edit-grid input[type="color"] { padding: 2px; min-width: 48px; }
+.editor-controls .print-preview-title { position: sticky; top: -14px; z-index: 2; background: #fff; padding: 10px 0; }
+.editor-controls .print-preview-actions { padding-bottom: 12px; }
+
+@media (max-width: 700px) {
+  .app-shell.editing { display: block; height: 100dvh; }
+  .app-shell.editing > .map-stage { height: 55dvh; min-height: 0; }
+  .app-shell.editing .map-canvas { height: 100%; min-height: 0; }
+  .editor-controls { top: 55dvh; width: 100%; height: 45dvh; border-top: 1px solid #cdd5d0; border-right: 0; }
 }
 
 .map-text-label-callout .map-label-box {
@@ -1016,6 +1098,7 @@ body.print-prep .notice-card li::before {
 }
 
 @media print {
+  .editor-controls, .shape-edit-handle, .leaflet-editor-guides-pane { display: none !important; }
   @page {
     size: 8.5in 11in;
     margin: 0.25in;

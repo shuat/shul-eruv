@@ -7,11 +7,19 @@ import {
   useState,
 } from "react";
 import L from "leaflet";
+import PathDrag from "leaflet-path-drag";
 import "leaflet/dist/leaflet.css";
 import {
   AlertTriangle,
   Check,
   Copy,
+  Download,
+  Upload,
+  Pencil,
+  Undo2,
+  Redo2,
+  Magnet,
+  Square,
   Crosshair,
   Layers,
   MapPinned,
@@ -27,10 +35,7 @@ import {
   X,
 } from "lucide-react";
 import {
-  boundaryFitPoints,
-  boundaryMarkers,
   boundarySegments,
-  boundaryStyles,
   eruvConfig,
   mapLabels,
   mapShapes,
@@ -38,7 +43,16 @@ import {
   type BoundarySegment,
   type LatLngTuple,
   type MapLabel,
+  type MapShape,
+  type EruvConfig,
 } from "./mapData";
+import roadData from "./roads.json";
+import { followRoad, moveJoinedPoint, moveLine, nearestRoadPoint, replaceLine, type Road } from "./editorGeometry";
+import { parseConfig } from "./configImport";
+import { lockMapInteractions } from "./mapDragLock";
+
+const roads = roadData.roads as Road[];
+type EditSnapshot = { config: EruvConfig; segments: BoundarySegment[]; labels: MapLabel[]; shapes: MapShape[]; zoom: number };
 
 type BaseLayerKey = "standard" | "light";
 
@@ -177,6 +191,22 @@ function escapeHtml(value: string) {
 }
 
 function App() {
+  const [loadedConfig, setLoadedConfig] = useState(eruvConfig);
+  const config = loadedConfig;
+  const { boundaryStyles, boundaryMarkers } = config;
+  const printPreviewDefaults = config.map.printPreview;
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isMapLocked, setIsMapLocked] = useState(true);
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [selectedRoadId, setSelectedRoadId] = useState("");
+  const [editorStatus, setEditorStatus] = useState("");
+  const [editableMapShapes, setEditableMapShapes] = useState(() => structuredClone(mapShapes));
+  const [selectedShapeId, setSelectedShapeId] = useState("");
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const historyRef = useRef<EditSnapshot[]>([]);
+  const historyIndex = useRef(-1);
+  const restoringHistory = useRef(false);
+  const [historyVersion, setHistoryVersion] = useState(0);
   const mapNodeRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const overlayRef = useRef<L.FeatureGroup | null>(null);
@@ -185,6 +215,7 @@ function App() {
   const [showBoundary, setShowBoundary] = useState(true);
   const [showMarkers, setShowMarkers] = useState(true);
   const [isPrintPreview, setIsPrintPreview] = useState(false);
+  const isEditing = isEditMode || isPrintPreview;
   const [editableBoundarySegments, setEditableBoundarySegments] = useState(
     cloneBoundarySegments,
   );
@@ -207,9 +238,22 @@ function App() {
   const [canSaveConfig] = useState(isSaveModeEnabled);
 
   const mapBounds = useMemo(
-    () => L.latLngBounds(boundaryFitPoints.map(([lat, lng]) => [lat, lng])),
-    [],
+    () => L.latLngBounds((editableBoundarySegments.length ? editableBoundarySegments : boundarySegments).flatMap(s => s.points)),
+    [editableBoundarySegments],
   );
+  const boundsRef = useRef(mapBounds);
+  boundsRef.current = mapBounds;
+  const selectedRoad = roads.find(road => road.id === selectedRoadId);
+  const selectedShape = editableMapShapes.find(shape => shape.id === selectedShapeId);
+
+  useEffect(() => {
+    if (restoringHistory.current) { restoringHistory.current = false; return; }
+    const snapshot = { config, segments: editableBoundarySegments, labels: editableMapLabels, shapes: editableMapShapes, zoom: printZoomPercent };
+    if (JSON.stringify(historyRef.current[historyIndex.current]) === JSON.stringify(snapshot)) return;
+    historyRef.current = [...historyRef.current.slice(0, historyIndex.current + 1), structuredClone(snapshot)].slice(-60);
+    historyIndex.current = historyRef.current.length - 1;
+    setHistoryVersion(v => v + 1);
+  }, [config, editableBoundarySegments, editableMapLabels, editableMapShapes, printZoomPercent]);
   const selectedMapLabel = useMemo(
     () =>
       editableMapLabels.find((label) => label.id === selectedMapLabelId) ??
@@ -331,6 +375,8 @@ function App() {
       zoomControl: false,
       preferCanvas: true,
     });
+    map.createPane("editor-guides");
+    map.getPane("editor-guides")!.style.zIndex = "350";
 
     L.control.zoom({ position: "bottomright" }).addTo(map);
     const fitInitialView = () => {
@@ -355,7 +401,22 @@ function App() {
       tileLayerRef.current = null;
       overlayRef.current = null;
     };
-  }, [mapBounds]);
+  }, []);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => mapRef.current?.invalidateSize(false));
+    return () => cancelAnimationFrame(frame);
+  }, [isEditMode]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isEditing || !isMapLocked) return;
+    map.stop();
+    return lockMapInteractions([
+      map.dragging, map.touchZoom, map.scrollWheelZoom,
+      map.doubleClickZoom, map.boxZoom, map.keyboard,
+    ]);
+  }, [isEditing, isMapLocked]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -384,14 +445,34 @@ function App() {
     }
 
     if (overlayRef.current) {
+      overlayRef.current.eachLayer(layer => {
+        layer.unbindTooltip();
+        layer.unbindPopup();
+      });
       overlayRef.current.remove();
     }
 
     const group = L.featureGroup();
+    const dragRenderer = isEditing ? L.svg({ padding: 0.5 }).addTo(map) : undefined;
+    const pathDragHandlers: PathDrag[] = [];
+    let releaseMap = () => {};
+    const lockMap = () => {
+      releaseMap();
+      releaseMap = lockMapInteractions([
+        map.dragging, map.touchZoom, map.scrollWheelZoom,
+        map.doubleClickZoom, map.boxZoom, map.keyboard,
+      ]);
+    };
+    if (isEditing && selectedRoad) {
+      L.polyline(selectedRoad.points, { pane: "editor-guides", color: "#1685bf", weight: 9, opacity: 0.25, interactive: false }).addTo(group);
+    }
 
     if (showBoundary) {
       editableBoundarySegments.forEach((segment) => {
         const style = { ...boundaryStyles[segment.kind], ...segment.style };
+        const vertexMarkers: L.Marker[] = [];
+        let innerLine: L.Polyline | undefined;
+        let lineHitTarget: L.Polyline | undefined;
 
         const boundaryLine = L.polyline(segment.points, {
           color: style.color,
@@ -400,11 +481,11 @@ function App() {
           lineJoin: "round",
           opacity: 0.96,
           weight: style.weight,
-        }).bindTooltip(`<strong>${segment.label}</strong><br />${segment.note}`, {
+        }).bindTooltip(`<strong>${escapeHtml(segment.label)}</strong><br />${escapeHtml(segment.note)}`, {
             sticky: true,
           });
 
-        if (isPrintPreview) {
+        if (isEditing) {
           boundaryLine.on("click", () => {
             setSelectedBoundarySegmentId(segment.id);
           });
@@ -412,7 +493,7 @@ function App() {
 
         boundaryLine.addTo(group);
         if (style.innerColor && style.innerWeight) {
-          L.polyline(segment.points, {
+          innerLine = L.polyline(segment.points, {
             color: style.innerColor,
             weight: style.innerWeight,
             interactive: false,
@@ -421,10 +502,11 @@ function App() {
           }).addTo(group);
         }
 
-        if (isPrintPreview && segment.id === selectedBoundarySegmentId) {
+        if (isEditing && segment.id === selectedBoundarySegmentId) {
           segment.points.forEach((point, pointIndex) => {
             const isSelectedPoint = pointIndex === selectedBoundaryPointIndex;
             const vertexMarker = L.marker(point, {
+              title: `Boundary point ${pointIndex + 1}`,
               draggable: true,
               icon: L.divIcon({
                 className: `boundary-edit-handle${
@@ -444,43 +526,73 @@ function App() {
             });
 
             vertexMarker.on("dragstart", () => {
-              setSelectedBoundarySegmentId(segment.id);
-              setSelectedBoundaryPointIndex(pointIndex);
+              lockMap();
+              vertexMarker.closeTooltip();
+            });
+
+            vertexMarker.on("drag", () => {
+              if (snapEnabled) {
+                const position = vertexMarker.getLatLng();
+                const pixel = map.latLngToContainerPoint(position);
+                const tolerance = map.distance(position, map.containerPointToLatLng(pixel.add([16, 0])));
+                const match = nearestRoadPoint([position.lat, position.lng], selectedRoad ? [selectedRoad] : roads, tolerance);
+                if (match) vertexMarker.setLatLng(match.point);
+              }
+              const position = vertexMarker.getLatLng();
+              const points = segment.points.map((point, index) => index === pointIndex ? position : L.latLng(point));
+              boundaryLine.setLatLngs(points);
+              innerLine?.setLatLngs(points);
+              lineHitTarget?.setLatLngs(points);
             });
 
             vertexMarker.on("dragend", () => {
+              releaseMap();
               const nextPosition = vertexMarker.getLatLng();
 
               setSelectedBoundarySegmentId(segment.id);
               setSelectedBoundaryPointIndex(pointIndex);
-              setEditableBoundarySegments((currentSegments) =>
-                currentSegments.map((currentSegment) =>
-                  currentSegment.id === segment.id
-                    ? {
-                        ...currentSegment,
-                        points: currentSegment.points.map(
-                          (currentPoint, currentPointIndex) =>
-                            currentPointIndex === pointIndex
-                              ? [
-                                  roundCoordinate(nextPosition.lat),
-                                  roundCoordinate(nextPosition.lng),
-                                ]
-                              : currentPoint,
-                        ),
-                      }
-                    : currentSegment,
-                ),
-              );
+              setEditableBoundarySegments(current => moveJoinedPoint(current, segment.id, pointIndex,
+                [roundCoordinate(nextPosition.lat), roundCoordinate(nextPosition.lng)]));
               markJsonDirty();
             });
 
             vertexMarker.addTo(group);
+            vertexMarkers.push(vertexMarker);
+          });
+        }
+
+        if (isEditing) {
+          // A continuous wide hit area makes thin and dotted boundaries easy to grab.
+          const hitLine = L.polyline(segment.points, {
+            renderer: dragRenderer, weight: Math.max(20, style.weight), opacity: 0,
+            className: "boundary-drag-target", bubblingMouseEvents: false,
+          }).addTo(group);
+          lineHitTarget = hitLine;
+          const draggable = PathDrag.makeDraggable(hitLine);
+          draggable.dragging.enable();
+          pathDragHandlers.push(draggable.dragging);
+          hitLine.on("add", () => hitLine.getElement()?.setAttribute("aria-label", `Move line: ${segment.label}`));
+          hitLine.on("click", () => setSelectedBoundarySegmentId(segment.id));
+          hitLine.on("dragstart", lockMap);
+          hitLine.on("drag", () => {
+            const points = hitLine.getLatLngs().flat(2) as L.LatLng[];
+            boundaryLine.setLatLngs(points);
+            innerLine?.setLatLngs(points);
+            vertexMarkers.forEach((marker, index) => marker.setLatLng(points[index]));
+          });
+          hitLine.on("dragend", () => {
+            releaseMap();
+            const points = (hitLine.getLatLngs().flat(2) as L.LatLng[]).map(point =>
+              [roundCoordinate(point.lat), roundCoordinate(point.lng)] as LatLngTuple);
+            setEditableBoundarySegments(current => moveLine(current, segment.id, points));
+            setSelectedBoundarySegmentId(segment.id);
+            markJsonDirty();
           });
         }
       });
 
-      mapShapes.forEach((shape) => {
-        L.polygon(shape.points, {
+      editableMapShapes.forEach((shape) => {
+        const polygon = L.polygon(shape.points, {
           color: shape.strokeColor,
           fillColor: shape.fillColor,
           fillOpacity: shape.fillOpacity,
@@ -492,6 +604,25 @@ function App() {
             sticky: true,
           })
           .addTo(group);
+        if (isEditing) polygon.on("click", () => setSelectedShapeId(shape.id));
+        if (isEditing && shape.id === selectedShapeId) {
+          shape.points.forEach((point, index) => {
+            const handle = L.marker(point, {
+              draggable: true,
+              icon: L.divIcon({ className: "shape-edit-handle", html: "<span></span>", iconSize: [12, 12], iconAnchor: [6, 6] }),
+              zIndexOffset: 1100,
+            }).addTo(group);
+            handle.on("dragstart", lockMap);
+            handle.on("dragend", () => {
+              releaseMap();
+              const p = handle.getLatLng();
+              setEditableMapShapes(current => current.map(s => s.id === shape.id ? {
+                ...s, points: s.points.map((v, i) => i === index ? [roundCoordinate(p.lat), roundCoordinate(p.lng)] : v),
+              } : s));
+              markJsonDirty();
+            });
+          });
+        }
       });
     }
 
@@ -513,12 +644,12 @@ function App() {
             offset: [0, -2],
             permanent: true,
           })
-          .bindPopup(`<strong>${marker.label}</strong><br />${marker.description}`)
+          .bindPopup(`<strong>${escapeHtml(marker.label)}</strong><br />${escapeHtml(marker.description)}`)
           .addTo(group);
       });
 
       editableMapLabels.forEach((label) => {
-        const isSelectedLabel = isPrintPreview && label.id === selectedMapLabelId;
+        const isSelectedLabel = isEditing && label.id === selectedMapLabelId;
         const iconWidth = label.widthPx ?? (
           label.variant === "callout"
             ? 176
@@ -528,10 +659,11 @@ function App() {
         const iconHeight = label.variant === "callout" ? 64 : 24;
 
         const labelMarker = L.marker(label.position, {
-          draggable: isPrintPreview,
+          title: label.label,
+          draggable: isEditing,
           icon: L.divIcon({
             className: `map-text-label map-text-label-${label.variant}${
-              isPrintPreview ? " map-label-editing" : ""
+              isEditing ? " map-label-editing" : ""
             }${isSelectedLabel ? " map-label-selected" : ""}`,
             html: `<span class="map-label-box"${getMapLabelBoxStyle(label)}>${escapeHtml(
               label.label,
@@ -539,19 +671,17 @@ function App() {
             iconAnchor: [label.rotationDeg ? 0 : iconWidth / 2, 0],
             iconSize: [iconWidth, iconHeight],
           }),
-          interactive: isPrintPreview,
+          interactive: isEditing,
         });
 
-        if (isPrintPreview) {
+        if (isEditing) {
+          labelMarker.on("dragstart", lockMap);
           labelMarker.on("click", () => {
             setSelectedMapLabelId(label.id);
           });
 
-          labelMarker.on("dragstart", () => {
-            setSelectedMapLabelId(label.id);
-          });
-
           labelMarker.on("dragend", () => {
+            releaseMap();
             const nextPosition = labelMarker.getLatLng();
 
             setSelectedMapLabelId(label.id);
@@ -578,10 +708,27 @@ function App() {
 
     group.addTo(map);
     overlayRef.current = group;
+    return () => {
+      releaseMap();
+      pathDragHandlers.forEach(handler => handler.disable());
+      group.eachLayer(layer => {
+        layer.unbindTooltip();
+        layer.unbindPopup();
+      });
+      group.remove();
+      dragRenderer?.remove();
+      if (overlayRef.current === group) overlayRef.current = null;
+    };
   }, [
     editableBoundarySegments,
     editableMapLabels,
-    isPrintPreview,
+    isEditing,
+    snapEnabled,
+    selectedRoad,
+    editableMapShapes,
+    selectedShapeId,
+    boundaryStyles,
+    boundaryMarkers,
     markJsonDirty,
     selectedBoundarySegmentId,
     selectedBoundaryPointIndex,
@@ -602,7 +749,7 @@ function App() {
 
       if (forPrint) {
         const printPadding = L.point(4, 4);
-        const bounds = mapBounds.pad(eruvConfig.map.printFitPaddingRatio);
+        const bounds = boundsRef.current.pad(config.map.printFitPaddingRatio);
         const fitZoom = map.getBoundsZoom(bounds, false, printPadding);
         const zoomOffset = (zoomPercent - 100) / 25;
         const nextZoom = Math.min(
@@ -614,12 +761,12 @@ function App() {
         return;
       }
 
-      map.fitBounds(mapBounds.pad(eruvConfig.map.screenFitPaddingRatio), {
+      map.fitBounds(boundsRef.current.pad(config.map.screenFitPaddingRatio), {
         animate: false,
         padding: [44, 44],
       });
     },
-    [mapBounds, printZoomPercent],
+    [config.map, printZoomPercent],
   );
 
   const enterPrintPrep = useCallback(async (zoomPercent = printZoomPercent) => {
@@ -901,23 +1048,24 @@ function App() {
   }, [markJsonDirty, selectedMapLabel]);
 
   const resetBoundarySegments = useCallback(() => {
-    setEditableBoundarySegments(cloneBoundarySegments());
+    setEditableBoundarySegments(structuredClone(config.boundarySegments));
     setSelectedBoundaryPointIndex(0);
     markJsonDirty();
-  }, [markJsonDirty]);
+  }, [markJsonDirty, config]);
 
   const resetMapLabels = useCallback(() => {
-    setEditableMapLabels(cloneMapLabels());
+    setEditableMapLabels(structuredClone(config.mapLabels));
     markJsonDirty();
-  }, [markJsonDirty]);
+  }, [markJsonDirty, config]);
 
   const buildUpdatedConfig = useCallback(
     () => ({
-      ...eruvConfig,
+      ...config,
+      mapShapes: editableMapShapes,
       map: {
-        ...eruvConfig.map,
+        ...config.map,
         printPreview: {
-          ...eruvConfig.map.printPreview,
+          ...config.map.printPreview,
           defaultZoomPercent: printZoomPercent,
         },
       },
@@ -942,7 +1090,7 @@ function App() {
         ],
       })),
     }),
-    [editableBoundarySegments, editableMapLabels, printZoomPercent],
+    [config, editableMapShapes, editableBoundarySegments, editableMapLabels, printZoomPercent],
   );
 
   const copyUpdatedJson = useCallback(async () => {
@@ -987,6 +1135,137 @@ function App() {
     }
   }, [buildUpdatedConfig, canSaveConfig]);
 
+  function stepHistory(direction: -1 | 1) {
+    const next = historyIndex.current + direction;
+    const snapshot = historyRef.current[next];
+    if (!snapshot) return;
+    restoringHistory.current = true;
+    historyIndex.current = next;
+    setLoadedConfig(snapshot.config);
+    setEditableBoundarySegments(snapshot.segments);
+    setEditableMapLabels(snapshot.labels);
+    setEditableMapShapes(snapshot.shapes);
+    setPrintZoomPercent(snapshot.zoom);
+    setHistoryVersion(v => v + 1);
+    markJsonDirty();
+    setEditorStatus(direction < 0 ? "Undone" : "Redone");
+  }
+
+  function patchLabel(patch: Partial<MapLabel>) {
+    if (!selectedMapLabel) return;
+    setEditableMapLabels(current => current.map(label => label.id === selectedMapLabel.id ? { ...label, ...patch } : label));
+    markJsonDirty();
+  }
+
+  function addTextBox() {
+    const center = mapRef.current?.getCenter();
+    if (!center) return;
+    const label: MapLabel = { id: `note-${crypto.randomUUID()}`, label: "New note", variant: "callout",
+      position: [roundCoordinate(center.lat), roundCoordinate(center.lng)], widthPx: 150, fontSizePt: 7.4, fontWeight: 600 };
+    setEditableMapLabels(current => [...current, label]);
+    setSelectedMapLabelId(label.id);
+    setShowMarkers(true);
+    markJsonDirty();
+  }
+
+  function addAreaBox() {
+    const map = mapRef.current;
+    if (!map) return;
+    const center = map.latLngToContainerPoint(map.getCenter());
+    const points = [[-35,-40],[35,-40],[35,40],[-35,40]].map(([x,y]): LatLngTuple => {
+      const point = map.containerPointToLatLng(center.add([x,y]));
+      return [roundCoordinate(point.lat), roundCoordinate(point.lng)];
+    });
+    const shape: MapShape = { id: `area-${crypto.randomUUID()}`, label: "New area", points,
+      strokeColor: "#aa4841", fillColor: "#ffffff", fillOpacity: 0, weight: 2 };
+    setEditableMapShapes(current => [...current, shape]);
+    setSelectedShapeId(shape.id);
+    setShowBoundary(true);
+    markJsonDirty();
+  }
+
+  function addLine() {
+    const map = mapRef.current;
+    if (!map) return;
+    const center = map.latLngToContainerPoint(map.getCenter());
+    const points = [-40,40].map(x => {
+      const p = map.containerPointToLatLng(center.add([x,0]));
+      return [roundCoordinate(p.lat), roundCoordinate(p.lng)] as LatLngTuple;
+    });
+    const segment: BoundarySegment = { id: `boundary-${crypto.randomUUID()}`, label: "New boundary", kind: "fullStreet", points, note: "" };
+    setEditableBoundarySegments(current => [...current, segment]);
+    setSelectedBoundarySegmentId(segment.id);
+    setShowBoundary(true);
+    markJsonDirty();
+  }
+
+  function splitLine() {
+    if (!selectedBoundarySegment || selectedBoundaryPointIndex < 1 || selectedBoundaryPointIndex >= selectedBoundaryPointCount - 1) return;
+    const index = selectedBoundaryPointIndex;
+    const id = `boundary-${crypto.randomUUID()}`;
+    setEditableBoundarySegments(current => current.flatMap(s => s.id !== selectedBoundarySegment.id ? [s] : [
+      { ...s, points: s.points.slice(0, index + 1) },
+      { ...s, id, label: `${s.label} (continued)`, points: s.points.slice(index) },
+    ]));
+    setSelectedBoundarySegmentId(id);
+    markJsonDirty();
+  }
+
+  function snapPoint() {
+    if (!selectedBoundarySegment) return;
+    const match = nearestRoadPoint(selectedBoundarySegment.points[selectedBoundaryPointIndex], selectedRoad ? [selectedRoad] : roads, 80);
+    if (!match) { setEditorStatus("No road within 80 m of this point."); return; }
+    setEditableBoundarySegments(current => moveJoinedPoint(current, selectedBoundarySegment.id, selectedBoundaryPointIndex, match.point));
+    setEditorStatus(`Point snapped to ${match.road.name}.`);
+    markJsonDirty();
+  }
+
+  function snapLine() {
+    if (!selectedBoundarySegment || !selectedRoad) return;
+    try {
+      const points = followRoad(selectedBoundarySegment.points, selectedRoad);
+      setEditableBoundarySegments(current => replaceLine(current, selectedBoundarySegment.id, points));
+      setSelectedBoundaryPointIndex(0);
+      setEditorStatus(`Line follows ${selectedRoad.name} (${points.length} points).`);
+      markJsonDirty();
+    } catch (error) { setEditorStatus(error instanceof Error ? error.message : "Unable to snap this line."); }
+  }
+
+  function downloadJson() {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(buildUpdatedConfig(), null, 2) + "\n"], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "eruvConfig.json";
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setEditorStatus("JSON exported.");
+  }
+
+  async function importJson(file?: File) {
+    if (!file) return;
+    try {
+      if (file.size > 2 * 1024 * 1024) throw new Error("JSON must be smaller than 2 MB.");
+      const next = parseConfig(await file.text());
+      setLoadedConfig(next);
+      setEditableBoundarySegments(structuredClone(next.boundarySegments));
+      setEditableMapLabels(structuredClone(next.mapLabels));
+      setEditableMapShapes(structuredClone(next.mapShapes));
+      setPrintZoomPercent(next.map.printPreview.defaultZoomPercent);
+      setSelectedBoundarySegmentId(next.boundarySegments[0].id);
+      setSelectedMapLabelId(next.mapLabels[0]?.id ?? "");
+      setSelectedShapeId("");
+      markJsonDirty();
+      setEditorStatus(`Imported ${file.name}.`);
+      requestAnimationFrame(() => mapRef.current?.fitBounds(L.latLngBounds(next.boundarySegments.flatMap(s => s.points)), { padding: [40,40] }));
+    } catch (error) { setEditorStatus(error instanceof Error ? error.message : "Unable to import JSON."); }
+    if (importInputRef.current) importInputRef.current.value = "";
+  }
+
+  function openEditor() {
+    setIsEditMode(true);
+    setShowBoundary(true);
+    setShowMarkers(true);
+  }
 
   async function handlePrint() {
     setShowBoundary(true);
@@ -997,32 +1276,32 @@ function App() {
 
   return (
     <>
-      <main className="app-shell">
+      <main className={`app-shell${isEditMode && !isPrintPreview ? " editing" : ""}`}>
         <aside className="info-panel" aria-label="Brookwood eruv information">
         <section className="brand-block">
           <div className="brand-kicker">
             <ShieldCheck size={18} aria-hidden="true" />
-            {eruvConfig.kicker}
+            {config.kicker}
           </div>
-          <h1>{eruvConfig.title}</h1>
+          <h1>{config.title}</h1>
           <p>
-            <span className="english-title">{eruvConfig.englishTitle}</span>
-            {eruvConfig.subtitle}
+            <span className="english-title">{config.englishTitle}</span>
+            {config.subtitle}
           </p>
         </section>
 
         <section className="contact-strip" aria-label="Hotline">
           <Phone size={18} aria-hidden="true" />
           <span>Hotline</span>
-          <a href={`tel:${eruvConfig.hotline.replace(/-/g, "")}`}>
-            {eruvConfig.hotline}
+          <a href={`tel:${config.hotline.replace(/[^\d+]/g, "")}`}>
+            {config.hotline}
           </a>
         </section>
 
         <section className="vaad-card" aria-label="Vaad ha-eruv">
-          <h2>{eruvConfig.vaadTitle}</h2>
+          <h2>{config.vaadTitle}</h2>
           <ul>
-            {eruvConfig.vaadMembers.map((member) => (
+            {config.vaadMembers.map((member) => (
               <li key={member}>{member}</li>
             ))}
           </ul>
@@ -1036,6 +1315,9 @@ function App() {
           <button type="button" onClick={openPrintPreview}>
             <Printer size={17} aria-hidden="true" />
             Print letter
+          </button>
+          <button type="button" onClick={openEditor} className="full-action">
+            <Pencil size={17} aria-hidden="true" /> Edit map
           </button>
           <button
             type="button"
@@ -1084,7 +1366,7 @@ function App() {
           )}
           <div className="legend-row marker-legend-row">
             <span className="legend-marker-dot" aria-hidden="true" />
-            <span>{eruvConfig.markerLegendLabel}</span>
+            <span>{config.markerLegendLabel}</span>
           </div>
         </section>
 
@@ -1094,7 +1376,7 @@ function App() {
             Boundary Notes
           </div>
           <ul>
-            {eruvConfig.notes.map((note) => (
+            {config.notes.map((note) => (
               <li key={note}>{note}</li>
             ))}
           </ul>
@@ -1125,24 +1407,60 @@ function App() {
 
         <section className="map-stage" aria-label="Interactive eruv map">
           <div className="map-toolbar">
-            <span>{eruvConfig.areaLabel}</span>
-            <span>{eruvConfig.municipality}</span>
+            <span>{config.areaLabel}</span>
+            <span>{config.municipality}</span>
           </div>
           <div ref={mapNodeRef} className="map-canvas" />
         </section>
       </main>
 
-      {isPrintPreview ? (
-        <aside className="print-preview-controls" aria-label="Print preview controls">
+      {isEditing ? (
+        <aside className={isPrintPreview ? "print-preview-controls" : "editor-controls"} aria-label={isPrintPreview ? "Print preview controls" : "Map editor"}>
           <div className="print-preview-title">
             <SlidersHorizontal size={17} aria-hidden="true" />
-            Print preview
+            {isPrintPreview ? "Print preview" : "Edit map"}
+            <button type="button" className="editor-close" title="Close editor" aria-label="Close editor" onClick={() => isPrintPreview ? closePrintPreview() : setIsEditMode(false)}><X size={18} /></button>
           </div>
-          <p className="print-preview-hint">
-            Drag the map info cards, adjust selected label text, then copy the
-            updated JSON.
-          </p>
-          <div className="print-zoom-control">
+          <div className="editor-commands" data-history-version={historyVersion}>
+            <button type="button" title="Undo" aria-label="Undo" disabled={historyIndex.current <= 0} onClick={() => stepHistory(-1)}><Undo2 size={17}/></button>
+            <button type="button" title="Redo" aria-label="Redo" disabled={historyIndex.current >= historyRef.current.length - 1} onClick={() => stepHistory(1)}><Redo2 size={17}/></button>
+            <button type="button" title="Fit boundary" aria-label="Fit boundary" onClick={() => fitToBoundary(isPrintPreview)}><Crosshair size={17}/></button>
+            {!isPrintPreview && <button type="button" title="Print preview" aria-label="Print preview" onClick={openPrintPreview}><Printer size={17}/></button>}
+          </div>
+          <label className="snap-toggle"><input type="checkbox" checked={isMapLocked} onChange={event => setIsMapLocked(event.currentTarget.checked)}/> Lock map position</label>
+          <div className="editor-add-tools">
+            <button type="button" onClick={addTextBox}><Plus size={15}/> Text box</button>
+            <button type="button" onClick={addAreaBox}><Square size={15}/> Area box</button>
+            <button type="button" onClick={addLine}><Route size={15}/> Line</button>
+          </div>
+          <div className="editor-files">
+            <button type="button" onClick={downloadJson}><Download size={15}/> Export JSON</button>
+            <button type="button" onClick={() => importInputRef.current?.click()}><Upload size={15}/> Import JSON</button>
+            <input ref={importInputRef} type="file" accept=".json,application/json" aria-label="Import JSON file" hidden onChange={event => void importJson(event.currentTarget.files?.[0])}/>
+          </div>
+          {editorStatus && <p className="editor-status" role="status">{editorStatus}</p>}
+          <label className="label-edit-select">
+            <span>Map name</span>
+            <input aria-label="Map name" type="text" value={config.areaLabel} maxLength={120} onChange={event => {
+              const areaLabel = event.currentTarget.value;
+              setLoadedConfig(current => ({ ...current, areaLabel }));
+              markJsonDirty();
+            }}/>
+          </label>
+          <section className="road-edit-tools" aria-label="Road snapping">
+            <label className="snap-toggle"><input type="checkbox" checked={snapEnabled} onChange={event => setSnapEnabled(event.currentTarget.checked)}/><Magnet size={16}/> Snap while dragging</label>
+            <label className="label-edit-select"><span>Snap road</span>
+              <select value={selectedRoadId} onChange={event => setSelectedRoadId(event.currentTarget.value)}>
+                <option value="">Any nearby road</option>
+                {roads.map(road => <option key={road.id} value={road.id}>{road.name}{roads.filter(r => r.name === road.name).length > 1 ? ` (${road.id})` : ""}</option>)}
+              </select>
+            </label>
+            <div className="editor-files">
+              <button type="button" disabled={!selectedBoundarySegment} onClick={snapPoint}><Magnet size={15}/> Snap point</button>
+              <button type="button" disabled={!selectedRoad || !selectedBoundarySegment} onClick={snapLine}><Route size={15}/> Follow road</button>
+            </div>
+          </section>
+          {isPrintPreview && <div className="print-zoom-control">
             <div className="print-zoom-heading">
               <label htmlFor="print-zoom-range">Map zoom</label>
               <label className="print-zoom-value" htmlFor="print-zoom-number">
@@ -1170,7 +1488,7 @@ function App() {
               onInput={(event) => updatePrintZoom(event.currentTarget.value)}
               onKeyUp={(event) => updatePrintZoom(event.currentTarget.value)}
             />
-          </div>
+          </div>}
           {selectedMapLabel && selectedMapLabelTypography ? (
             <section className="label-edit-card" aria-label="Selected map label editor">
               <label className="label-edit-select">
@@ -1187,6 +1505,9 @@ function App() {
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="label-edit-select"><span>Text</span>
+                <textarea value={selectedMapLabel.label} rows={3} dir="auto" onChange={event => patchLabel({label: event.currentTarget.value})}/>
               </label>
               <div className="label-edit-grid">
                 <label>
@@ -1216,7 +1537,14 @@ function App() {
                     }
                   />
                 </label>
+                <label><span>Width (px)</span><input type="number" min={20} max={500} value={selectedMapLabel.widthPx ?? 176} onChange={event => patchLabel({widthPx: clampNumber(Number(event.currentTarget.value),20,500)})}/></label>
+                <label><span>Rotation</span><input type="number" min={-180} max={180} value={selectedMapLabel.rotationDeg ?? 0} onChange={event => patchLabel({rotationDeg: clampNumber(Number(event.currentTarget.value),-180,180)})}/></label>
+                <label><span>Text color</span><input type="color" value={selectedMapLabel.color ?? "#1f2937"} onChange={event => patchLabel({color: event.currentTarget.value})}/></label>
+                <label><span>Style</span><select value={selectedMapLabel.variant} onChange={event => patchLabel({variant: event.currentTarget.value as MapLabel["variant"]})}>
+                  <option value="callout">Box</option><option value="plain">Plain</option><option value="handwritten">Handwritten</option>
+                </select></label>
               </div>
+              <button type="button" className="label-edit-reset" onClick={() => {setEditableMapLabels(current => current.filter(l => l.id !== selectedMapLabel.id)); markJsonDirty();}}><Trash2 size={15}/> Delete text box</button>
               <button
                 type="button"
                 className="label-edit-reset"
@@ -1227,6 +1555,15 @@ function App() {
               </button>
             </section>
           ) : null}
+          <section className="area-edit-tools" aria-label="Area boxes">
+            <label className="label-edit-select"><span>Area box</span>
+              <select value={selectedShapeId} onChange={event => setSelectedShapeId(event.currentTarget.value)}><option value="">Select area</option>{editableMapShapes.map(s => <option value={s.id} key={s.id}>{s.label}</option>)}</select>
+            </label>
+            {selectedShape && <>
+              <label className="label-edit-select"><span>Area name</span><input value={selectedShape.label} onChange={event => {const label=event.currentTarget.value; setEditableMapShapes(current => current.map(s => s.id === selectedShape.id ? {...s,label} : s)); markJsonDirty();}}/></label>
+              <button type="button" className="label-edit-reset" onClick={() => {setEditableMapShapes(current => current.filter(s => s.id !== selectedShape.id)); setSelectedShapeId(""); markJsonDirty();}}><Trash2 size={15}/> Delete area box</button>
+            </>}
+          </section>
           {selectedBoundarySegment ? (
             <section className="boundary-edit-card" aria-label="Selected boundary editor">
               <label className="label-edit-select">
@@ -1244,6 +1581,7 @@ function App() {
                   ))}
                 </select>
               </label>
+              <button type="button" className="label-edit-reset" onClick={() => mapRef.current?.fitBounds(L.latLngBounds(selectedBoundarySegment.points).pad(0.25), {maxZoom:18,padding:[50,50]})}><Crosshair size={15}/> Focus selected line</button>
               <label className="label-edit-select">
                 <span>Boundary type</span>
                 <select
@@ -1264,10 +1602,8 @@ function App() {
                   ))}
                 </select>
               </label>
-              <p className="boundary-edit-hint">
-                Drag numbered points, or add/remove the selected point.
-              </p>
               <div className="boundary-point-tools">
+                <label className="label-edit-select"><span>Point number</span><input type="number" min={1} max={selectedBoundaryPointCount} value={selectedBoundaryPointIndex + 1} onChange={event => setSelectedBoundaryPointIndex(Math.round(clampNumber(Number(event.currentTarget.value) - 1, 0, selectedBoundaryPointCount - 1)))}/></label>
                 <span>
                   Point{" "}
                   {selectedBoundaryPointCount > 0
@@ -1289,6 +1625,10 @@ function App() {
                     Remove
                   </button>
                 </div>
+              </div>
+              <div className="editor-files">
+                <button type="button" disabled={selectedBoundaryPointIndex < 1 || selectedBoundaryPointIndex >= selectedBoundaryPointCount - 1} onClick={splitLine}><Route size={15}/> Split at point</button>
+                <button type="button" disabled={editableBoundarySegments.length <= 1} onClick={() => {setEditableBoundarySegments(current => current.filter(s => s.id !== selectedBoundarySegment.id)); markJsonDirty();}}><Trash2 size={15}/> Delete line</button>
               </div>
               <button
                 type="button"
@@ -1359,13 +1699,13 @@ function App() {
                 />
               </label>
             ) : null}
-            <button type="button" className="secondary-action" onClick={closePrintPreview}>
+            <button type="button" className="secondary-action" onClick={() => isPrintPreview ? closePrintPreview() : setIsEditMode(false)}>
               <X size={16} aria-hidden="true" />
               Close
             </button>
-            <button type="button" className="primary-action" onClick={handlePrint}>
+            <button type="button" className="primary-action" onClick={isPrintPreview ? handlePrint : openPrintPreview}>
               <Printer size={16} aria-hidden="true" />
-              Print
+              {isPrintPreview ? "Print" : "Print preview"}
             </button>
           </div>
         </aside>
